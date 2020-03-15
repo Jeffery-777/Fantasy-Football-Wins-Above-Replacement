@@ -1,0 +1,174 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(httr) 
+library(rvest)
+library(curl)
+
+```
+
+
+```{r}
+ffurl <- "https://www.footballdb.com/fantasy-football/index.html?pos={Position}&yr={Year}&wk={Week}&rules=1"
+
+url1 <- map(.x = c("QB", "RB", "WR", "TE"),
+    .f = function(x){gsub(x = ffurl, pattern = "\\{Position\\}", replacement = x)}) %>% 
+  unlist 
+
+url2 <- map(.x = 1:17,
+    .f = function(x){gsub(x = url1, pattern = "\\{Week\\}", replacement = x)}) %>% 
+  unlist 
+
+url3 <- map(.x = 2010:2019,
+    .f = function(x){gsub(x = url2, pattern = "\\{Year\\}", replacement = x)}) %>% 
+  unlist 
+
+#sapply(url3, url_success) %>% table
+
+map_dfr(.x = url3,
+        .f = function(x){ Sys.sleep(1); cat(1); read_html(curl(x, handle = curl::new_handle("useragent" = "Mozilla/5.0"))) %>% 
+            html_nodes("table") %>% 
+            html_table() %>% 
+            simplify() %>% 
+            first() %>% 
+            setNames(paste0(colnames(.), as.character(.[1,]))) %>% 
+            slice(-1) %>% 
+            mutate(Position = str_extract(string = x, pattern = "(?<=pos=)\\w+(?=&)"),
+                   Week = str_extract(string = x, pattern = "(?<=&wk=)\\d+(?=&)"),
+                   Year = str_extract(string = x, pattern = "(?<=&yr=)\\d+(?=&)"))
+          },
+        .id = "url") -> FF_Database
+
+saveRDS(FF_Database, file = "scrape1.rds")
+
+
+```
+
+Kickers
+```{r}
+ffurl <- "https://www.footballdb.com/fantasy-football/index.html?pos={Position}&yr={Year}&wk={Week}&rules=1"
+
+urlk1 <- map(.x = "K",
+    .f = function(x){gsub(x = ffurl, pattern = "\\{Position\\}", replacement = x)}) %>% 
+  unlist 
+
+urlk2 <- map(.x = 1:17,
+    .f = function(x){gsub(x = urlk1, pattern = "\\{Week\\}", replacement = x)}) %>% 
+  unlist 
+
+urlk3 <- map(.x = 2010:2019,
+    .f = function(x){gsub(x = urlk2, pattern = "\\{Year\\}", replacement = x)}) %>% 
+  unlist 
+
+#sapply(urlk3, url_success) %>% table
+
+map_dfr(.x = urlk3,
+        .f = function(x){ Sys.sleep(3); cat(1); read_html(curl(x, handle = curl::new_handle("useragent" = "Mozilla/5.0"))) %>% 
+            html_nodes("table") %>% 
+            html_table() %>% 
+            simplify() %>% 
+            first() %>% 
+            # setNames(paste0(colnames(.), as.character(.[1,]))) %>% 
+            # slice(-1) %>% 
+            mutate(Position = str_extract(string = x, pattern = "(?<=pos=)\\w+(?=&)"),
+                   Week = str_extract(string = x, pattern = "(?<=&wk=)\\d+(?=&)"),
+                   Year = str_extract(string = x, pattern = "(?<=&yr=)\\d+(?=&)"))
+          },
+        .id = "url") -> FF_K_Database
+
+saveRDS(FF_K_Database, file = "scrapekickers.rds")
+
+```
+
+DST
+```{r}
+ffurl <- "https://www.footballdb.com/fantasy-football/index.html?pos={Position}&yr={Year}&wk={Week}&rules=1"
+
+urld1 <- map(.x = "DST",
+    .f = function(x){gsub(x = ffurl, pattern = "\\{Position\\}", replacement = x)}) %>% 
+  unlist 
+
+urld2 <- map(.x = 1:17,
+    .f = function(x){gsub(x = urld1, pattern = "\\{Week\\}", replacement = x)}) %>% 
+  unlist 
+
+urld3 <- map(.x = 2010:2019,
+    .f = function(x){gsub(x = urld2, pattern = "\\{Year\\}", replacement = x)}) %>% 
+  unlist 
+
+#sapply(urld3, url_success) %>% table
+
+map_dfr(.x = urld3,
+        .f = function(x){ Sys.sleep(3); cat(1); read_html(curl(x, handle = curl::new_handle("useragent" = "Mozilla/5.0"))) %>% 
+            html_nodes("table") %>% 
+            html_table() %>% 
+            simplify() %>% 
+            first() %>% 
+            # setNames(paste0(colnames(.), as.character(.[1,]))) %>% 
+            # slice(-1) %>% 
+            mutate(Position = str_extract(string = x, pattern = "(?<=pos=)\\w+(?=&)"),
+                   Week = str_extract(string = x, pattern = "(?<=&wk=)\\d+(?=&)"),
+                   Year = str_extract(string = x, pattern = "(?<=&yr=)\\d+(?=&)"))
+          },
+        .id = "url") -> FF_DST_Database
+
+saveRDS(FF_DST_Database, file = "scrapedst.rds")
+
+```
+
+
+```{r}
+FFDB_positions_all <- FF_Database %>%
+    full_join(FF_K_Database, by = c("Player" = "Player")) %>%
+    full_join(FF_DST_Database, by = c("Player" = "Team"))
+```
+
+cleaning
+```{r}
+#FFDB_positions_all$Player <- if_else(is.na(FFDB_positions_all$Player), FFDB_positions_all$Team, FFDB_positions_all$Player)
+
+#FFDB_positions_all[is.na(FFDB_positions_all)] <- 0
+FFDB_positions_all$Team <- NULL
+FFDB_positions_all$Game <- NULL
+FFDB_positions_all$url <- NULL
+FFDB_positions_all$Opp <- NULL
+
+
+names(FFDB_positions_all)[names(FFDB_positions_all) == "Pts*"] <- 'Points'
+
+
+FFDB_positions_all$Year <- as.factor(FFDB_positions_all$Year)
+FFDB_positions_all$Week <- as.factor(FFDB_positions_all$Week)
+FFDB_positions_all$Player <- as.factor(FFDB_positions_all$Player)
+FFDB_positions_all$Position <- as.factor(FFDB_positions_all$Position)
+FFDB_positions_all$Year <- as.factor(FFDB_positions_all$Year)
+
+FFDB_positions_all$`Position.x` <- as.factor(as.character(FFDB_positions_all$`Position.x`))
+
+FFDB_positions_all$Player <- as.factor(as.character(FFDB_positions_all$Player))
+
+FFDB_positions_all2 <-  FFDB_positions_all %>%
+  mutate_if(is.character,as.numeric)
+
+str(FFDB_positions_all)
+
+FFDB <- FFDB_positions_all2 %>%
+  select(-c(Week, Position, Year)) %>%
+  select(Year = Year.x, Week = Week.x, Player, Position = Position.x, Points = `Pts*.x`, everything()) %>%
+  arrange(desc(Year), Week, desc(Position), desc(Points))
+
+
+FFDB$Player <- sub("\\B[A-Z]+(?:\\.\\s+\\S+)*$", "", FFDB$Player)
+
+DB <- FFDB %>%
+  select(Year, Week, Player, Position, Points, everything(), -url.y, -url.x, -`Game.y`, -`Game.x`, -`Pts*.y`, -Position.y, -Week.y, -Year.y, -url, -`Pts*`)
+
+saveRDS(DB, file = "FF_09_19_complete.rds")
+
+
+```
+
