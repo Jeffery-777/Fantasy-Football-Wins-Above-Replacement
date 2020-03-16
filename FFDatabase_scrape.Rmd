@@ -162,3 +162,6 @@ data$position <- as.factor(data$position)
 
 data <- data %>%
   mutate_if(is.character, as.numeric) 
+  
+saveRDS(data, file = "Fantasy Football Complete 2010_2019.rds")
+```
