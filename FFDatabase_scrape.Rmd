@@ -118,57 +118,47 @@ map_dfr(.x = urld3,
 
 saveRDS(FF_DST_Database, file = "scrapedst.rds")
 
-```
+#need to load the rds files (3) to then compute the combination of them.
+data <- scrape1 %>%
+    full_join(scrapekickers, by = c("Player" = "Player")) %>%
+    full_join(scrapedst, by = c("Player" = "Team"))
 
 
-```{r}
-FFDB_positions_all <- FF_Database %>%
-    full_join(FF_K_Database, by = c("Player" = "Player")) %>%
-    full_join(FF_DST_Database, by = c("Player" = "Team"))
-```
+data$Player <- sub("\\B[A-Z]+(?:\\.\\s+\\S+)*$", "", data$Player)
+data$`Pts*.x` <- as.double(data$`Pts*.x`)
 
-cleaning
-```{r}
-#FFDB_positions_all$Player <- if_else(is.na(FFDB_positions_all$Player), FFDB_positions_all$Team, FFDB_positions_all$Player)
+data <- data %>%
+  mutate(POINTS = case_when(
+    !is.na(Position.x) ~ `Pts*.x`,
+    !is.na(Position.y) ~ `Pts*.y`,
+    !is.na(Position) ~ `Pts*`)) %>%
+  mutate(WEEK = case_when(
+    !is.na(Position.x) ~ Week.x,
+    !is.na(Position.y) ~ Week.y,
+    !is.na(Position) ~ Week)) %>%
+  mutate(POSITION = case_when(
+    !is.na(Position.x) ~ Position.x,
+    !is.na(Position.y) ~ Position.y,
+    !is.na(Position) ~ Position )) %>%
+  mutate(YEAR = case_when(
+    !is.na(Position.x) ~ Year.x,
+    !is.na(Position.y) ~ Year.y,
+    !is.na(Position) ~ Year ))
 
-#FFDB_positions_all[is.na(FFDB_positions_all)] <- 0
-FFDB_positions_all$Team <- NULL
-FFDB_positions_all$Game <- NULL
-FFDB_positions_all$url <- NULL
-FFDB_positions_all$Opp <- NULL
-
-
-names(FFDB_positions_all)[names(FFDB_positions_all) == "Pts*"] <- 'Points'
-
-
-FFDB_positions_all$Year <- as.factor(FFDB_positions_all$Year)
-FFDB_positions_all$Week <- as.factor(FFDB_positions_all$Week)
-FFDB_positions_all$Player <- as.factor(FFDB_positions_all$Player)
-FFDB_positions_all$Position <- as.factor(FFDB_positions_all$Position)
-FFDB_positions_all$Year <- as.factor(FFDB_positions_all$Year)
-
-FFDB_positions_all$`Position.x` <- as.factor(as.character(FFDB_positions_all$`Position.x`))
-
-FFDB_positions_all$Player <- as.factor(as.character(FFDB_positions_all$Player))
-
-FFDB_positions_all2 <-  FFDB_positions_all %>%
-  mutate_if(is.character,as.numeric)
-
-str(FFDB_positions_all)
-
-FFDB <- FFDB_positions_all2 %>%
-  select(-c(Week, Position, Year)) %>%
-  select(Year = Year.x, Week = Week.x, Player, Position = Position.x, Points = `Pts*.x`, everything()) %>%
-  arrange(desc(Year), Week, desc(Position), desc(Points))
+data <- data %>%
+  select(year = YEAR, week = WEEK, player = Player, position = POSITION, 
+         points = POINTS, pass_att = PassingAtt, pass_comp = PassingCmp, 
+         pass_yards = PassingYds, pass_td = PassingTD, pass_int = PassingInt,
+         pass_2pt = Passing2Pt, rush_att = RushingAtt, rush_yards = RushingYds,
+         rush_td = RushingTD, rush_2pt = Rushing2Pt, rec_catches = ReceivingRec,
+         rec_yards = ReceivingYds, rec_td = ReceivingTD, rec_2pt = Receiving2Pt,
+         fum_lost = FumblesFL, fum_td = FumblesTD, XPA, XPM, FGA, FGM, sack = Sack,
+         int = Int, safety = Saf, fum_recover = FR, block = Blk, dst_td = TD,
+         points_allowed = PA, yards_allowed = TotYds) 
 
 
-FFDB$Player <- sub("\\B[A-Z]+(?:\\.\\s+\\S+)*$", "", FFDB$Player)
+data$player <- as.factor(data$player)
+data$position <- as.factor(data$position)
 
-DB <- FFDB %>%
-  select(Year, Week, Player, Position, Points, everything(), -url.y, -url.x, -`Game.y`, -`Game.x`, -`Pts*.y`, -Position.y, -Week.y, -Year.y, -url, -`Pts*`)
-
-saveRDS(DB, file = "FF_09_19_complete.rds")
-
-
-```
-
+data <- data %>%
+  mutate_if(is.character, as.numeric) 
